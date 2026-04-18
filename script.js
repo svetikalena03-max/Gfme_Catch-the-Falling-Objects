@@ -11,14 +11,44 @@
     { emoji: "🧱", good: false },
   ];
 
-  const GAME_DURATION = 30;
-  const START_LIVES = 3;
-  const SPAWN_MS_MIN = 520;
-  const SPAWN_MS_MAX = 980;
-  const SPEED_MIN = 140;
-  const SPEED_MAX = 260;
+  /**
+   * Тур: подпись, цель очков, скорость падения (px/с), интервал спавна (мс),
+   * доля плохих предметов (0–1).
+   */
+  const LEVELS = [
+    {
+      num: 1,
+      diffLabel: "Лёгкий",
+      targetScore: 10,
+      speedMin: 88,
+      speedMax: 155,
+      spawnMin: 640,
+      spawnMax: 1080,
+      badChance: 0.32,
+    },
+    {
+      num: 2,
+      diffLabel: "Средний",
+      targetScore: 15,
+      speedMin: 155,
+      speedMax: 248,
+      spawnMin: 400,
+      spawnMax: 760,
+      badChance: 0.44,
+    },
+    {
+      num: 3,
+      diffLabel: "Сложный",
+      targetScore: 20,
+      speedMin: 218,
+      speedMax: 335,
+      spawnMin: 280,
+      spawnMax: 520,
+      badChance: 0.58,
+    },
+  ];
 
-  /** Чем больше, тем быстрее корзина догоняет цель (экспоненциальное сглаживание, 1/с). */
+  const START_LIVES = 3;
   const BASKET_FOLLOW = 22;
   const KEYBOARD_PX_PER_S = 380;
 
@@ -29,25 +59,29 @@
 
   const playfield = document.getElementById("playfield");
   const basket = document.getElementById("basket");
+  const tourNumEl = document.getElementById("tour-num");
+  const tourDiffEl = document.getElementById("tour-diff");
   const scoreEl = document.getElementById("score");
+  const targetScoreEl = document.getElementById("target-score");
   const livesEl = document.getElementById("lives");
-  const timerEl = document.getElementById("timer");
-  const overlayStart = document.getElementById("overlay-start");
-  const overlayEnd = document.getElementById("overlay-end");
-  const finalScoreEl = document.getElementById("final-score");
+  const overlayIntro = document.getElementById("overlay-intro");
+  const overlayRound = document.getElementById("overlay-round");
+  const overlayVictory = document.getElementById("overlay-victory");
+  const roundTitleEl = document.getElementById("round-title");
+  const roundTextEl = document.getElementById("round-text");
   const btnStart = document.getElementById("btn-start");
-  const btnReplay = document.getElementById("btn-replay");
+  const btnNextTour = document.getElementById("btn-next-tour");
+  const btnRetryRound = document.getElementById("btn-retry-round");
+  const btnVictoryReplay = document.getElementById("btn-victory-replay");
 
+  let currentTourIndex = 0;
   let isRunning = false;
   let score = 0;
   let lives = START_LIVES;
-  let timeLeft = GAME_DURATION;
   let rafId = 0;
   let lastTs = 0;
   let nextSpawnAt = 0;
-  /** Текущая отрисовка и коллизии (левый край корзины). */
   let basketX = 0;
-  /** Цель по горизонтали (левый край), задаётся мышью и корректируется стрелками. */
   let targetBasketX = 0;
   let keyLeft = false;
   let keyRight = false;
@@ -55,10 +89,17 @@
   /** @type {{ el: HTMLDivElement, y: number, speed: number, good: boolean }[]} */
   const items = [];
 
+  function currentLevel() {
+    return LEVELS[currentTourIndex];
+  }
+
   function setHud() {
+    const lv = currentLevel();
+    tourNumEl.textContent = String(lv.num);
+    tourDiffEl.textContent = lv.diffLabel;
     scoreEl.textContent = String(score);
+    targetScoreEl.textContent = String(lv.targetScore);
     livesEl.textContent = String(lives);
-    timerEl.textContent = String(Math.ceil(timeLeft));
   }
 
   function playfieldWidth() {
@@ -80,7 +121,6 @@
     basket.style.left = basketX + "px";
   }
 
-  /** Центр корзины совпадает с курсором по горизонтали (в пределах поля). */
   function setTargetFromClientX(clientX) {
     const rect = playfield.getBoundingClientRect();
     const centerLocal = clientX - rect.left;
@@ -160,8 +200,9 @@
   }
 
   function pickType() {
+    const lv = currentLevel();
     const roll = Math.random();
-    const pool = roll < 0.58 ? GOOD : BAD;
+    const pool = roll < lv.badChance ? BAD : GOOD;
     return pool[(Math.random() * pool.length) | 0];
   }
 
@@ -170,6 +211,7 @@
     const h = playfieldHeight();
     if (w < ITEM_SIZE || h < 80) return;
 
+    const lv = currentLevel();
     const type = pickType();
     const el = document.createElement("div");
     el.className = "falling-item";
@@ -183,16 +225,16 @@
 
     playfield.appendChild(el);
 
-    const speed = SPEED_MIN + Math.random() * (SPEED_MAX - SPEED_MIN);
+    const speed = lv.speedMin + Math.random() * (lv.speedMax - lv.speedMin);
     items.push({ el, y: -ITEM_SIZE, speed, good: type.good });
   }
 
   function scheduleNextSpawn(ts) {
-    nextSpawnAt = ts + SPAWN_MS_MIN + Math.random() * (SPAWN_MS_MAX - SPAWN_MS_MIN);
+    const lv = currentLevel();
+    nextSpawnAt = ts + lv.spawnMin + Math.random() * (lv.spawnMax - lv.spawnMin);
   }
 
   function collide(it) {
-    const w = playfieldWidth();
     const h = playfieldHeight();
     const floorY = h - BASKET_BOTTOM - BASKET_H;
     const itemBottom = it.y + ITEM_SIZE;
@@ -211,23 +253,76 @@
     it.el.remove();
   }
 
-  function endGame() {
+  function stopPlay() {
     if (!isRunning) return;
     isRunning = false;
     cancelAnimationFrame(rafId);
     detachControls();
     onWindowBlur();
+  }
 
-    finalScoreEl.textContent = String(score);
-    overlayEnd.classList.add("overlay--visible");
-    overlayEnd.setAttribute("aria-hidden", "false");
+  function replayCardAnimation(card) {
+    if (!card) return;
+    card.classList.remove("overlay-card--entrance");
+    void card.offsetWidth;
+    card.classList.add("overlay-card--entrance");
+  }
 
-    const card = overlayEnd.querySelector(".overlay-card");
-    if (card) {
-      card.classList.remove("overlay-card--entrance");
-      void card.offsetWidth;
-      card.classList.add("overlay-card--entrance");
+  function hideOverlay(el) {
+    el.classList.remove("overlay--visible");
+    el.setAttribute("aria-hidden", "true");
+  }
+
+  function showOverlay(el) {
+    el.classList.add("overlay--visible");
+    el.setAttribute("aria-hidden", "false");
+    replayCardAnimation(el.querySelector(".overlay-card"));
+  }
+
+  function endTourWin() {
+    stopPlay();
+    clearItems();
+
+    const lv = currentLevel();
+    if (currentTourIndex >= LEVELS.length - 1) {
+      hideOverlay(overlayRound);
+      showOverlay(overlayVictory);
+      return;
     }
+
+    roundTitleEl.textContent = "Тур " + lv.num + " пройден!";
+    roundTextEl.textContent =
+      "Вы набрали " +
+      score +
+      " из " +
+      lv.targetScore +
+      " очков. Цель выполнена.";
+    btnNextTour.hidden = false;
+    btnRetryRound.hidden = true;
+
+    hideOverlay(overlayIntro);
+    hideOverlay(overlayVictory);
+    showOverlay(overlayRound);
+  }
+
+  function endTourLose() {
+    stopPlay();
+    clearItems();
+
+    const lv = currentLevel();
+    roundTitleEl.textContent = "Тур не пройден";
+    roundTextEl.textContent =
+      "У вас не осталось жизней. Счёт: " +
+      score +
+      " из " +
+      lv.targetScore +
+      " очков. Попробуйте этот тур снова.";
+    btnNextTour.hidden = true;
+    btnRetryRound.hidden = false;
+
+    hideOverlay(overlayIntro);
+    hideOverlay(overlayVictory);
+    showOverlay(overlayRound);
   }
 
   function tick(ts) {
@@ -237,14 +332,6 @@
     const dt = Math.min(0.05, (ts - lastTs) / 1000);
     lastTs = ts;
 
-    timeLeft -= dt;
-    if (timeLeft <= 0) {
-      timeLeft = 0;
-      setHud();
-      endGame();
-      return;
-    }
-
     if (ts >= nextSpawnAt) {
       spawnItem();
       scheduleNextSpawn(ts);
@@ -253,7 +340,9 @@
     updateTargetFromKeyboard(dt);
     smoothBasket(dt);
 
+    const lv = currentLevel();
     const h = playfieldHeight();
+
     for (let i = items.length - 1; i >= 0; i--) {
       const it = items[i];
       it.y += it.speed * dt;
@@ -262,18 +351,22 @@
       if (collide(it)) {
         if (it.good) {
           score += 1;
+          removeItemAt(i);
+          setHud();
+          if (score >= lv.targetScore) {
+            endTourWin();
+            return;
+          }
         } else {
           lives -= 1;
+          removeItemAt(i);
+          setHud();
           if (lives <= 0) {
             lives = 0;
-            setHud();
-            removeItemAt(i);
-            endGame();
+            endTourLose();
             return;
           }
         }
-        removeItemAt(i);
-        setHud();
         continue;
       }
 
@@ -282,20 +375,17 @@
       }
     }
 
-    setHud();
     rafId = requestAnimationFrame(tick);
   }
 
-  function startGame() {
-    overlayStart.classList.remove("overlay--visible");
-    overlayStart.setAttribute("aria-hidden", "true");
-    overlayEnd.classList.remove("overlay--visible");
-    overlayEnd.setAttribute("aria-hidden", "true");
+  function beginTour() {
+    hideOverlay(overlayIntro);
+    hideOverlay(overlayRound);
+    hideOverlay(overlayVictory);
 
     clearItems();
     score = 0;
     lives = START_LIVES;
-    timeLeft = GAME_DURATION;
     lastTs = 0;
     setHud();
 
@@ -306,19 +396,44 @@
 
     isRunning = true;
     attachControls();
-
     scheduleNextSpawn(performance.now());
     rafId = requestAnimationFrame(tick);
   }
 
-  btnStart.addEventListener("click", startGame);
-  btnReplay.addEventListener("click", startGame);
+  function onIntroStart() {
+    currentTourIndex = 0;
+    beginTour();
+  }
+
+  function onNextTour() {
+    hideOverlay(overlayRound);
+    currentTourIndex += 1;
+    beginTour();
+  }
+
+  function onRetryRound() {
+    hideOverlay(overlayRound);
+    beginTour();
+  }
+
+  function onVictoryReplay() {
+    hideOverlay(overlayVictory);
+    currentTourIndex = 0;
+    setHud();
+    showOverlay(overlayIntro);
+  }
+
+  btnStart.addEventListener("click", onIntroStart);
+  btnNextTour.addEventListener("click", onNextTour);
+  btnRetryRound.addEventListener("click", onRetryRound);
+  btnVictoryReplay.addEventListener("click", onVictoryReplay);
 
   window.addEventListener("resize", () => {
     targetBasketX = clampBasketX(targetBasketX);
     applyBasketVisual(clampBasketX(basketX));
   });
 
+  currentTourIndex = 0;
   setHud();
   const initialX = clampBasketX((playfieldWidth() - BASKET_W) / 2);
   targetBasketX = initialX;
