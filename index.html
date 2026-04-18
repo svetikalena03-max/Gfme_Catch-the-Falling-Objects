@@ -1,0 +1,50 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Лови предметы</title>
+  <link rel="stylesheet" href="style.css">
+</head>
+<body>
+  <main class="app">
+    <h1 class="title">Лови предметы</h1>
+
+    <div class="game-shell">
+      <header class="hud" aria-live="polite">
+        <div class="hud-item">Счёт: <span id="score" class="hud-value">0</span></div>
+        <div class="hud-item">Жизни: <span id="lives" class="hud-value">3</span></div>
+        <div class="hud-item">Время: <span id="timer" class="hud-value">30</span> с</div>
+      </header>
+
+      <div
+        id="playfield"
+        class="playfield"
+        role="application"
+        aria-label="Игровое поле. Двигайте корзину мышью."
+      >
+        <div id="basket" class="basket" aria-hidden="true">🧺</div>
+      </div>
+
+      <div id="overlay-start" class="overlay overlay--visible" aria-hidden="false">
+        <div class="overlay-card overlay-card--entrance">
+          <p class="overlay-text">
+            Ловите <span class="emoji-row">🍎 ⭐ 💎</span> — очки.<br>
+            Избегайте <span class="emoji-row">💣 🧱</span> — минус жизнь.
+          </p>
+          <button type="button" class="btn" id="btn-start">Начать игру</button>
+        </div>
+      </div>
+
+      <div id="overlay-end" class="overlay" aria-hidden="true">
+        <div class="overlay-card overlay-card--entrance">
+          <h2 class="overlay-title">Игра окончена</h2>
+          <p class="overlay-result">Итоговый счёт: <span id="final-score" class="hud-value">0</span></p>
+          <button type="button" class="btn" id="btn-replay">Играть снова</button>
+        </div>
+      </div>
+    </div>
+  </main>
+  <script src="script.js"></script>
+</body>
+</html>
