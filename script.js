@@ -10,7 +10,6 @@
     { emoji: "💣", good: false },
     { emoji: "🧱", good: false },
   ];
-  const ALL = GOOD.concat(BAD);
 
   const GAME_DURATION = 30;
   const START_LIVES = 3;
@@ -18,6 +17,10 @@
   const SPAWN_MS_MAX = 980;
   const SPEED_MIN = 140;
   const SPEED_MAX = 260;
+
+  /** Чем больше, тем быстрее корзина догоняет цель (экспоненциальное сглаживание, 1/с). */
+  const BASKET_FOLLOW = 22;
+  const KEYBOARD_PX_PER_S = 380;
 
   const BASKET_W = 88;
   const BASKET_H = 52;
@@ -42,7 +45,12 @@
   let rafId = 0;
   let lastTs = 0;
   let nextSpawnAt = 0;
+  /** Текущая отрисовка и коллизии (левый край корзины). */
   let basketX = 0;
+  /** Цель по горизонтали (левый край), задаётся мышью и корректируется стрелками. */
+  let targetBasketX = 0;
+  let keyLeft = false;
+  let keyRight = false;
 
   /** @type {{ el: HTMLDivElement, y: number, speed: number, good: boolean }[]} */
   const items = [];
@@ -67,16 +75,81 @@
     return Math.min(max, Math.max(0, x));
   }
 
-  function setBasketPosition(x) {
-    basketX = clampBasketX(x);
+  function applyBasketVisual(x) {
+    basketX = x;
     basket.style.left = basketX + "px";
   }
 
-  function onPointerMove(ev) {
-    if (!isRunning) return;
+  /** Центр корзины совпадает с курсором по горизонтали (в пределах поля). */
+  function setTargetFromClientX(clientX) {
     const rect = playfield.getBoundingClientRect();
-    const cx = (ev.clientX ?? 0) - rect.left;
-    setBasketPosition(cx - BASKET_W / 2);
+    const centerLocal = clientX - rect.left;
+    targetBasketX = clampBasketX(centerLocal - BASKET_W / 2);
+  }
+
+  function smoothBasket(dt) {
+    const alpha = 1 - Math.exp(-BASKET_FOLLOW * dt);
+    const next = basketX + (targetBasketX - basketX) * alpha;
+    if (Math.abs(targetBasketX - next) < 0.08) {
+      applyBasketVisual(targetBasketX);
+    } else {
+      applyBasketVisual(next);
+    }
+  }
+
+  function updateTargetFromKeyboard(dt) {
+    let dir = 0;
+    if (keyLeft) dir -= 1;
+    if (keyRight) dir += 1;
+    if (dir === 0) return;
+    targetBasketX = clampBasketX(targetBasketX + dir * KEYBOARD_PX_PER_S * dt);
+  }
+
+  function onWindowPointerMove(ev) {
+    if (!isRunning) return;
+    setTargetFromClientX(ev.clientX ?? 0);
+  }
+
+  function onPlayfieldPointerDown(ev) {
+    if (!isRunning) return;
+    setTargetFromClientX(ev.clientX ?? 0);
+  }
+
+  function onKeyDown(ev) {
+    if (!isRunning) return;
+    if (ev.key === "ArrowLeft") {
+      keyLeft = true;
+      ev.preventDefault();
+    } else if (ev.key === "ArrowRight") {
+      keyRight = true;
+      ev.preventDefault();
+    }
+  }
+
+  function onKeyUp(ev) {
+    if (ev.key === "ArrowLeft") keyLeft = false;
+    else if (ev.key === "ArrowRight") keyRight = false;
+  }
+
+  function onWindowBlur() {
+    keyLeft = false;
+    keyRight = false;
+  }
+
+  function attachControls() {
+    window.addEventListener("pointermove", onWindowPointerMove);
+    window.addEventListener("keydown", onKeyDown);
+    window.addEventListener("keyup", onKeyUp);
+    window.addEventListener("blur", onWindowBlur);
+    playfield.addEventListener("pointerdown", onPlayfieldPointerDown);
+  }
+
+  function detachControls() {
+    window.removeEventListener("pointermove", onWindowPointerMove);
+    window.removeEventListener("keydown", onKeyDown);
+    window.removeEventListener("keyup", onKeyUp);
+    window.removeEventListener("blur", onWindowBlur);
+    playfield.removeEventListener("pointerdown", onPlayfieldPointerDown);
   }
 
   function clearItems() {
@@ -142,8 +215,8 @@
     if (!isRunning) return;
     isRunning = false;
     cancelAnimationFrame(rafId);
-    playfield.removeEventListener("pointermove", onPointerMove);
-    playfield.removeEventListener("pointerdown", onPointerMove);
+    detachControls();
+    onWindowBlur();
 
     finalScoreEl.textContent = String(score);
     overlayEnd.classList.add("overlay--visible");
@@ -176,6 +249,9 @@
       spawnItem();
       scheduleNextSpawn(ts);
     }
+
+    updateTargetFromKeyboard(dt);
+    smoothBasket(dt);
 
     const h = playfieldHeight();
     for (let i = items.length - 1; i >= 0; i--) {
@@ -224,11 +300,12 @@
     setHud();
 
     const w = playfieldWidth();
-    setBasketPosition((w - BASKET_W) / 2);
+    const startX = clampBasketX((w - BASKET_W) / 2);
+    targetBasketX = startX;
+    applyBasketVisual(startX);
 
     isRunning = true;
-    playfield.addEventListener("pointermove", onPointerMove);
-    playfield.addEventListener("pointerdown", onPointerMove);
+    attachControls();
 
     scheduleNextSpawn(performance.now());
     rafId = requestAnimationFrame(tick);
@@ -238,9 +315,12 @@
   btnReplay.addEventListener("click", startGame);
 
   window.addEventListener("resize", () => {
-    if (isRunning) setBasketPosition(basketX);
+    targetBasketX = clampBasketX(targetBasketX);
+    applyBasketVisual(clampBasketX(basketX));
   });
 
   setHud();
-  setBasketPosition((playfieldWidth() - BASKET_W) / 2);
+  const initialX = clampBasketX((playfieldWidth() - BASKET_W) / 2);
+  targetBasketX = initialX;
+  applyBasketVisual(initialX);
 })();
