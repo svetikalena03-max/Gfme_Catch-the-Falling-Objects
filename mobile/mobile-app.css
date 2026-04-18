@@ -1,0 +1,92 @@
+/* Дополнительные стили мобильного варианта (PWA / тач) */
+
+html.mobile-app {
+  height: 100%;
+  -webkit-text-size-adjust: 100%;
+}
+
+html.mobile-app body {
+  min-height: 100%;
+  min-height: 100dvh;
+  padding: max(12px, env(safe-area-inset-top))
+    max(12px, env(safe-area-inset-right))
+    max(12px, env(safe-area-inset-bottom))
+    max(12px, env(safe-area-inset-left));
+  align-items: flex-start;
+  -webkit-tap-highlight-color: transparent;
+  -webkit-touch-callout: none;
+}
+
+html.mobile-app .app {
+  max-width: 100%;
+}
+
+html.mobile-app .title {
+  margin-bottom: 10px;
+  font-size: clamp(1rem, 4.5vw, 1.35rem);
+}
+
+html.mobile-app .game-shell {
+  padding: 12px;
+}
+
+html.mobile-app .hud {
+  font-size: 0.85rem;
+  padding: 10px 10px;
+}
+
+html.mobile-app .playfield {
+  height: min(52dvh, 420px);
+  min-height: 280px;
+  max-width: 100%;
+}
+
+html.mobile-app .btn {
+  min-height: 48px;
+  padding: 14px 24px;
+}
+
+html.mobile-app .touch-steer {
+  display: flex;
+  gap: 10px;
+  margin-top: 10px;
+  justify-content: center;
+  touch-action: manipulation;
+}
+
+html.mobile-app .touch-steer__btn {
+  flex: 1;
+  max-width: 160px;
+  min-height: 52px;
+  border: none;
+  border-radius: 14px;
+  font-size: 1.35rem;
+  font-weight: 800;
+  color: #1a2b3c;
+  background: linear-gradient(180deg, #e8f4fc 0%, #c5dce8 100%);
+  box-shadow: 0 4px 0 #7a9aad, inset 0 1px 0 rgba(255, 255, 255, 0.8);
+  cursor: pointer;
+  user-select: none;
+}
+
+html.mobile-app .touch-steer__btn:active {
+  transform: translateY(2px);
+  box-shadow: 0 2px 0 #7a9aad;
+}
+
+html.mobile-app .touch-steer__btn:focus-visible {
+  outline: 3px solid #2d5a87;
+  outline-offset: 2px;
+}
+
+/* Блок есть только в mobile/index — без класса на html скрыт */
+.touch-steer {
+  display: none;
+}
+
+html.mobile-app .overlay-hint {
+  font-size: 0.78rem;
+  color: #6a7d8f;
+  margin: -4px 0 14px;
+  line-height: 1.45;
+}

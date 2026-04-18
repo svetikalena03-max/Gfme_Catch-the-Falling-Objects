@@ -49,7 +49,8 @@
   ];
 
   const START_LIVES = 3;
-  const BASKET_FOLLOW = 22;
+  const mobileApp = document.documentElement.classList.contains("mobile-app");
+  const BASKET_FOLLOW = mobileApp ? 26 : 22;
   const KEYBOARD_PX_PER_S = 380;
 
   const BASKET_W = 88;
@@ -85,6 +86,8 @@
   let targetBasketX = 0;
   let keyLeft = false;
   let keyRight = false;
+  let touchSteerLeft = false;
+  let touchSteerRight = false;
 
   /** @type {{ el: HTMLDivElement, y: number, speed: number, good: boolean }[]} */
   const items = [];
@@ -137,12 +140,64 @@
     }
   }
 
+  function resetSteer() {
+    touchSteerLeft = false;
+    touchSteerRight = false;
+  }
+
   function updateTargetFromKeyboard(dt) {
     let dir = 0;
-    if (keyLeft) dir -= 1;
-    if (keyRight) dir += 1;
+    if (keyLeft || touchSteerLeft) dir -= 1;
+    if (keyRight || touchSteerRight) dir += 1;
     if (dir === 0) return;
     targetBasketX = clampBasketX(targetBasketX + dir * KEYBOARD_PX_PER_S * dt);
+  }
+
+  const touchBlockOpts = { passive: false };
+
+  function onTouchMoveBlockScroll(ev) {
+    if (isRunning && ev.cancelable) ev.preventDefault();
+  }
+
+  function bindTouchSteerButtons() {
+    const tl = document.getElementById("touch-left");
+    const tr = document.getElementById("touch-right");
+    if (!tl || !tr) return;
+
+    function armLeft() {
+      touchSteerLeft = true;
+    }
+    function armRight() {
+      touchSteerRight = true;
+    }
+    function disarmLeft() {
+      touchSteerLeft = false;
+    }
+    function disarmRight() {
+      touchSteerRight = false;
+    }
+
+    tl.addEventListener("pointerdown", function (e) {
+      e.preventDefault();
+      try {
+        tl.setPointerCapture(e.pointerId);
+      } catch (_) {}
+      armLeft();
+    });
+    tl.addEventListener("pointerup", disarmLeft);
+    tl.addEventListener("pointercancel", disarmLeft);
+    tl.addEventListener("lostpointercapture", disarmLeft);
+
+    tr.addEventListener("pointerdown", function (e) {
+      e.preventDefault();
+      try {
+        tr.setPointerCapture(e.pointerId);
+      } catch (_) {}
+      armRight();
+    });
+    tr.addEventListener("pointerup", disarmRight);
+    tr.addEventListener("pointercancel", disarmRight);
+    tr.addEventListener("lostpointercapture", disarmRight);
   }
 
   function onWindowPointerMove(ev) {
@@ -174,6 +229,7 @@
   function onWindowBlur() {
     keyLeft = false;
     keyRight = false;
+    resetSteer();
   }
 
   function attachControls() {
@@ -182,6 +238,9 @@
     window.addEventListener("keyup", onKeyUp);
     window.addEventListener("blur", onWindowBlur);
     playfield.addEventListener("pointerdown", onPlayfieldPointerDown);
+    if (mobileApp) {
+      window.addEventListener("touchmove", onTouchMoveBlockScroll, touchBlockOpts);
+    }
   }
 
   function detachControls() {
@@ -190,6 +249,9 @@
     window.removeEventListener("keyup", onKeyUp);
     window.removeEventListener("blur", onWindowBlur);
     playfield.removeEventListener("pointerdown", onPlayfieldPointerDown);
+    if (mobileApp) {
+      window.removeEventListener("touchmove", onTouchMoveBlockScroll, touchBlockOpts);
+    }
   }
 
   function clearItems() {
@@ -427,6 +489,8 @@
   btnNextTour.addEventListener("click", onNextTour);
   btnRetryRound.addEventListener("click", onRetryRound);
   btnVictoryReplay.addEventListener("click", onVictoryReplay);
+
+  bindTouchSteerButtons();
 
   window.addEventListener("resize", () => {
     targetBasketX = clampBasketX(targetBasketX);
