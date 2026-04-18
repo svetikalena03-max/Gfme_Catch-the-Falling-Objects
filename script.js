@@ -19,7 +19,7 @@
     {
       num: 1,
       diffLabel: "Лёгкий",
-      targetScore: 10,
+      targetScore: 50,
       speedMin: 88,
       speedMax: 155,
       spawnMin: 640,
@@ -29,7 +29,7 @@
     {
       num: 2,
       diffLabel: "Средний",
-      targetScore: 15,
+      targetScore: 50,
       speedMin: 155,
       speedMax: 248,
       spawnMin: 400,
@@ -39,7 +39,7 @@
     {
       num: 3,
       diffLabel: "Сложный",
-      targetScore: 20,
+      targetScore: 50,
       speedMin: 218,
       speedMax: 335,
       spawnMin: 280,
